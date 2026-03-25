@@ -13,6 +13,7 @@ import { Order } from '../../entities/order.entity';
 import { OrderItem } from '../../entities/order-item.entity';
 
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
+const webhookDomain = process.env.WEBHOOK_DOMAIN; // andreyshop.chickenkiller.com
 
 @Module({
   imports: [
@@ -20,6 +21,12 @@ const botToken = process.env.TELEGRAM_BOT_TOKEN;
       ? [
           TelegrafModule.forRoot({
             token: botToken,
+            launchOptions: webhookDomain ? {
+              webhook: {
+                domain: webhookDomain,
+                hookPath: '/telegram-webhook',
+              }
+            } : undefined,
           }),
         ]
       : []),

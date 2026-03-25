@@ -43,6 +43,7 @@ services:
       PORT: 3000
       API_URL: ${API_URL:-http://localhost:3000}
       WEBSITE_URL: ${WEBSITE_URL:-http://localhost:3002}
+      WEBHOOK_DOMAIN: ${WEBHOOK_DOMAIN:-}
       YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-1280139}
       YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-test_8m_ZECQI5MzCFbveTmtmoAqo1rIabyk0eRkTJDPF2cg}
       REDIS_HOST: redis
