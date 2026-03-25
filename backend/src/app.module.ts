@@ -1,0 +1,50 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { ProductsModule } from './modules/products/products.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { BotModule } from './modules/bot/bot.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
+import { OrdersModule } from './modules/orders/orders.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
+import { CartModule } from './modules/cart/cart.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DATABASE_URL?.includes('postgres://') 
+        ? new URL(process.env.DATABASE_URL).hostname 
+        : 'postgres',
+      port: 5432,
+      username: 'postgres',
+      password: 'postgres',
+      database: 'telegram_shop',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      synchronize: true,
+      retryAttempts: 10,
+      retryDelay: 3000,
+    }),
+    AuthModule,
+    ProductsModule,
+    CategoriesModule,
+    UsersModule,
+    OrdersModule,
+    ReviewsModule,
+    WishlistModule,
+    CartModule,
+    PaymentsModule,
+    BotModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
