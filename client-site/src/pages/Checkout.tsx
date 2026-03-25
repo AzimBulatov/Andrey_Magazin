@@ -6,7 +6,7 @@ import { useCart } from '../hooks/useCart';
 
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3000' 
-  : 'http://backend:3000';
+  : '';
 
 interface CheckoutItem {
   productId: number;

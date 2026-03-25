@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3000' 
-  : 'http://backend:3000';
+  : '';
 
 const statusLabels: Record<string, string> = {
   PENDING: 'Ожидает',

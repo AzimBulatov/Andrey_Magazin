@@ -8,7 +8,7 @@ import { useWishlist } from '../hooks/useWishlist';
 
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3000' 
-  : 'http://backend:3000';
+  : '';
 
 type TabType = 'description' | 'characteristics' | 'reviews' | 'questions';
 

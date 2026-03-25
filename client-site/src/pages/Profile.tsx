@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3000' 
-  : 'http://backend:3000';
+  : '';
 
 export default function Profile() {
   const { user, login, register, logout, isAuthenticated } = useAuth();
