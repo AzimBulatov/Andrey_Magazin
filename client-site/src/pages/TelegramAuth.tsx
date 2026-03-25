@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3000' 
-  : '';
+  : window.location.origin;
 
 export default function TelegramAuth() {
   const [searchParams] = useSearchParams();
