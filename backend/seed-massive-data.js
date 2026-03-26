@@ -486,7 +486,7 @@ async function seed() {
           JSON.stringify(user.addresses)
         ]
       );
-      createdUsers.push(result[0]);
+      createdUsers.push({ ...result[0], phone: user.phone, addresses: user.addresses });
       console.log(`  ✓ ${result[0].firstName} ${result[0].lastName} (${result[0].email})`);
     }
     console.log(`✅ Создано ${createdUsers.length} пользователей\n`);
