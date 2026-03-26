@@ -1,4 +1,4 @@
-// Мощный скрипт для посева данных в базу
+﻿// Мощный скрипт для посева данных в базу
 // Создает категории, товары, пользователей и заказы
 
 require('dotenv').config();
@@ -15,7 +15,7 @@ const AppDataSource = new DataSource({
   username: 'postgres',
   password: process.env.POSTGRES_PASSWORD || 'postgres',
   database: 'telegram_shop',
-  entities: ['src/entities/*.entity.ts'],
+  entities: ['dist/entities/*.entity.js'],
   synchronize: false,
 });
 
