@@ -670,8 +670,8 @@ async function seed() {
       const comment = randomItem(reviewTexts);
       
       await queryRunner.query(
-        `INSERT INTO reviews ("userId", "productId", rating, comment, "createdAt", "updatedAt") 
-         VALUES ($1, $2, $3, $4, $5, $5)`,
+        `INSERT INTO reviews ("userId", "productId", rating, comment, "createdAt") 
+         VALUES ($1, $2, $3, $4, $5)`,
         [user.id, product.id, rating, comment, randomPastDate(30)]
       );
       
