@@ -415,16 +415,27 @@ async function seed() {
     const createdCategories = [];
     
     for (const category of categories) {
-      const result = await queryRunner.query(
-        `INSERT INTO categories (name, description, "isActive", "createdAt", "updatedAt") 
-         VALUES ($1, $2, $3, NOW(), NOW()) 
-         RETURNING id, name`,
-        [category.name, category.description, category.isActive]
+      // Проверяем существует ли категория
+      const existing = await queryRunner.query(
+        `SELECT id, name FROM categories WHERE name = $1`,
+        [category.name]
       );
-      createdCategories.push(result[0]);
-      console.log(`  ✓ ${result[0].name}`);
+      
+      if (existing.length > 0) {
+        createdCategories.push(existing[0]);
+        console.log(`  ⚠️  ${existing[0].name} (уже существует)`);
+      } else {
+        const result = await queryRunner.query(
+          `INSERT INTO categories (name, description, "isActive", "createdAt", "updatedAt") 
+           VALUES ($1, $2, $3, NOW(), NOW()) 
+           RETURNING id, name`,
+          [category.name, category.description, category.isActive]
+        );
+        createdCategories.push(result[0]);
+        console.log(`  ✓ ${result[0].name}`);
+      }
     }
-    console.log(`✅ Создано ${createdCategories.length} категорий\n`);
+    console.log(`✅ Категорий в базе: ${createdCategories.length}\n`);
 
     // ============================================
     // 2. СОЗДАНИЕ ТОВАРОВ
@@ -434,27 +445,39 @@ async function seed() {
     
     for (const category of createdCategories) {
       const products = allProductsData[category.name] || [];
+      let newCount = 0;
       
       for (const product of products) {
-        const result = await queryRunner.query(
-          `INSERT INTO products (name, description, price, stock, "categoryId", "isActive", 
-           "viewCount", "salesCount", "averageRating", "reviewCount", "createdAt", "updatedAt") 
-           VALUES ($1, $2, $3, $4, $5, true, $6, 0, 0, 0, NOW(), NOW()) 
-           RETURNING id, name, price`,
-          [
-            product.name,
-            product.description,
-            product.price,
-            product.stock,
-            category.id,
-            randomInt(10, 500) // случайное количество просмотров
-          ]
+        // Проверяем существует ли товар
+        const existing = await queryRunner.query(
+          `SELECT id, name, price FROM products WHERE name = $1 AND "categoryId" = $2`,
+          [product.name, category.id]
         );
-        createdProducts.push({ ...result[0], categoryId: category.id });
+        
+        if (existing.length > 0) {
+          createdProducts.push({ ...existing[0], categoryId: category.id });
+        } else {
+          const result = await queryRunner.query(
+            `INSERT INTO products (name, description, price, stock, "categoryId", "isActive", 
+             "viewCount", "salesCount", "averageRating", "reviewCount", "createdAt", "updatedAt") 
+             VALUES ($1, $2, $3, $4, $5, true, $6, 0, 0, 0, NOW(), NOW()) 
+             RETURNING id, name, price`,
+            [
+              product.name,
+              product.description,
+              product.price,
+              product.stock,
+              category.id,
+              randomInt(10, 500)
+            ]
+          );
+          createdProducts.push({ ...result[0], categoryId: category.id });
+          newCount++;
+        }
       }
-      console.log(`  ✓ ${category.name}: ${products.length} товаров`);
+      console.log(`  ✓ ${category.name}: ${products.length} товаров (новых: ${newCount})`);
     }
-    console.log(`✅ Создано ${createdProducts.length} товаров\n`);
+    console.log(`✅ Товаров в базе: ${createdProducts.length}\n`);
 
     // ============================================
     // 3. СОЗДАНИЕ ПОЛЬЗОВАТЕЛЕЙ
@@ -463,33 +486,44 @@ async function seed() {
     const createdUsers = [];
     
     for (const user of usersData) {
-      const hashedPassword = await bcrypt.hash(user.password, 10);
-      
-      const result = await queryRunner.query(
-        `INSERT INTO users ("telegramId", username, "firstName", "lastName", "middleName", 
-         email, password, phone, "birthDate", gender, bio, addresses, "isBlocked", 
-         "createdAt", "updatedAt") 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, false, NOW(), NOW()) 
-         RETURNING id, "firstName", "lastName", email`,
-        [
-          user.telegramId,
-          user.email.split('@')[0], // username из email
-          user.firstName,
-          user.lastName,
-          user.middleName,
-          user.email,
-          hashedPassword,
-          user.phone,
-          user.birthDate,
-          user.gender,
-          user.bio,
-          JSON.stringify(user.addresses)
-        ]
+      // Проверяем существует ли пользователь
+      const existing = await queryRunner.query(
+        `SELECT id, "firstName", "lastName", email, phone FROM users WHERE "telegramId" = $1 OR email = $2`,
+        [user.telegramId, user.email]
       );
-      createdUsers.push({ ...result[0], phone: user.phone, addresses: user.addresses });
-      console.log(`  ✓ ${result[0].firstName} ${result[0].lastName} (${result[0].email})`);
+      
+      if (existing.length > 0) {
+        createdUsers.push({ ...existing[0], addresses: user.addresses });
+        console.log(`  ⚠️  ${existing[0].firstName} ${existing[0].lastName} (уже существует)`);
+      } else {
+        const hashedPassword = await bcrypt.hash(user.password, 10);
+        
+        const result = await queryRunner.query(
+          `INSERT INTO users ("telegramId", username, "firstName", "lastName", "middleName", 
+           email, password, phone, "birthDate", gender, bio, addresses, "isBlocked", 
+           "createdAt", "updatedAt") 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, false, NOW(), NOW()) 
+           RETURNING id, "firstName", "lastName", email`,
+          [
+            user.telegramId,
+            user.email.split('@')[0],
+            user.firstName,
+            user.lastName,
+            user.middleName,
+            user.email,
+            hashedPassword,
+            user.phone,
+            user.birthDate,
+            user.gender,
+            user.bio,
+            JSON.stringify(user.addresses)
+          ]
+        );
+        createdUsers.push({ ...result[0], phone: user.phone, addresses: user.addresses });
+        console.log(`  ✓ ${result[0].firstName} ${result[0].lastName} (${result[0].email})`);
+      }
     }
-    console.log(`✅ Создано ${createdUsers.length} пользователей\n`);
+    console.log(`✅ Пользователей в базе: ${createdUsers.length}\n`);
 
     // ============================================
     // 4. СОЗДАНИЕ КОШЕЛЬКОВ ДЛЯ ПОЛЬЗОВАТЕЛЕЙ
