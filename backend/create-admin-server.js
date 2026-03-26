@@ -32,12 +32,12 @@ async function createAdmin() {
       [email, hashedPassword, `${firstName} ${lastName}`, 'admin']
     );
 
-    // Создаем пользователя с ролью admin
+    // Создаем пользователя для админа (без поля role)
     await client.query('DELETE FROM users WHERE email = $1', [email]);
     await client.query(
-      `INSERT INTO users ("firstName", "lastName", email, password, role, "createdAt", "updatedAt") 
-       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
-      [firstName, lastName, email, hashedPassword, 'admin']
+      `INSERT INTO users ("firstName", "lastName", email, password, "createdAt", "updatedAt") 
+       VALUES ($1, $2, $3, $4, NOW(), NOW())`,
+      [firstName, lastName, email, hashedPassword]
     );
 
     console.log('✅ Admin created successfully!');
