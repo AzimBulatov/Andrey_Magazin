@@ -10,10 +10,10 @@ const AppDataSource = new DataSource({
   type: 'postgres',
   host: process.env.DATABASE_URL?.includes('postgres://') 
     ? new URL(process.env.DATABASE_URL).hostname 
-    : 'localhost',
+    : process.env.DATABASE_HOST || 'postgres',
   port: 5432,
   username: 'postgres',
-  password: 'postgres',
+  password: process.env.POSTGRES_PASSWORD || 'postgres',
   database: 'telegram_shop',
   entities: ['src/entities/*.entity.ts'],
   synchronize: false,
