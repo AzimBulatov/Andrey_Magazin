@@ -201,7 +201,7 @@ export default function ProductDetail() {
               ))}
             </div>
             <span className="rating-text">
-              {product.averageRating > 0 ? product.averageRating.toFixed(1) : 'Нет оценок'}
+              {product.averageRating > 0 ? Number(product.averageRating).toFixed(1) : 'Нет оценок'}
             </span>
             <button
               onClick={() => setActiveTab('reviews')}
@@ -366,7 +366,7 @@ export default function ProductDetail() {
                 </div>
                 <div className="char-row">
                   <span className="char-label">Рейтинг</span>
-                  <span className="char-value">{product.averageRating > 0 ? `${product.averageRating.toFixed(1)} / 5` : 'Нет оценок'}</span>
+                  <span className="char-value">{product.averageRating > 0 ? `${Number(product.averageRating).toFixed(1)} / 5` : 'Нет оценок'}</span>
                 </div>
               </div>
             </div>
