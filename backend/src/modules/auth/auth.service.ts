@@ -147,8 +147,31 @@ export class AuthService {
     };
   }
 
-  // Авторизация через Telegram (для клиентов)
+  // Авторизация через Telegram (для клиентов и админов)
   async loginTelegram(telegramId: number, userData: any) {
+    // Сначала проверяем, есть ли админ с таким telegramId
+    const admin = await this.adminRepository.findOne({
+      where: { telegramId: telegramId.toString() },
+    });
+
+    if (admin) {
+      // Если это админ - возвращаем админский токен
+      const payload = { sub: admin.id, email: admin.email, role: 'admin' };
+      const token = this.jwtService.sign(payload);
+
+      return {
+        access_token: token,
+        user: {
+          id: admin.id,
+          email: admin.email,
+          name: admin.name,
+          role: 'admin',
+          telegramId: admin.telegramId,
+        },
+      };
+    }
+
+    // Если не админ - работаем с обычным пользователем
     let user = await this.userRepository.findOne({
       where: { telegramId: telegramId.toString() },
     });
@@ -174,6 +197,7 @@ export class AuthService {
         username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
+        role: 'user',
       },
     };
   }
@@ -188,7 +212,7 @@ export class AuthService {
     }
   }
 
-  // Генерация magic link токена для Telegram пользователя
+  // Генерация magic link токена для Telegram пользователя или админа
   async generateTelegramAuthToken(telegramId: string): Promise<string> {
     // Очищаем старые токены этого пользователя
     await this.telegramAuthTokenRepository.delete({
@@ -201,13 +225,26 @@ export class AuthService {
       expiresAt: LessThan(new Date()),
     });
 
-    // Находим пользователя
-    const user = await this.userRepository.findOne({
+    // Сначала проверяем, есть ли админ с таким telegramId
+    const admin = await this.adminRepository.findOne({
       where: { telegramId },
     });
 
-    if (!user) {
-      throw new UnauthorizedException('Пользователь не найден');
+    let userId: number;
+
+    if (admin) {
+      userId = admin.id;
+    } else {
+      // Находим обычного пользователя
+      const user = await this.userRepository.findOne({
+        where: { telegramId },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('Пользователь не найден');
+      }
+
+      userId = user.id;
     }
 
     // Генерируем уникальный токен
@@ -219,7 +256,7 @@ export class AuthService {
 
     const authToken = this.telegramAuthTokenRepository.create({
       token,
-      userId: user.id,
+      userId,
       telegramId,
       expiresAt,
     });

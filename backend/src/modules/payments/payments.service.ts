@@ -100,6 +100,7 @@ export class PaymentsService {
 
     // Создаем платеж в ЮKassa
     try {
+      const websiteUrl = process.env.WEBSITE_URL || 'http://localhost:3001';
       const paymentData = {
         amount: {
           value: amount.toFixed(2),
@@ -107,7 +108,7 @@ export class PaymentsService {
         },
         confirmation: {
           type: 'redirect',
-          return_url: `http://localhost:3001/finance?payment=success`,
+          return_url: `${websiteUrl}/finance?payment=success`,
         },
         capture: true,
         description: `Пополнение баланса`,

@@ -17,6 +17,9 @@ export class Admin {
   @Column({ default: 'admin' })
   role: string;
 
+  @Column({ type: 'bigint', unique: true, nullable: true })
+  telegramId: string;
+
   @CreateDateColumn()
   createdAt: Date;
 
