@@ -529,19 +529,31 @@ async function seed() {
     // 4. СОЗДАНИЕ КОШЕЛЬКОВ ДЛЯ ПОЛЬЗОВАТЕЛЕЙ
     // ============================================
     console.log('💰 Создаем кошельки...');
+    let newWallets = 0;
     
     for (const user of createdUsers) {
-      const initialBalance = randomInt(0, 50000); // случайный начальный баланс
-      
-      await queryRunner.query(
-        `INSERT INTO wallets ("userId", balance, "totalDeposited", "totalSpent", 
-         "isActive", "createdAt", "updatedAt") 
-         VALUES ($1, $2, $2, 0, true, NOW(), NOW())`,
-        [user.id, initialBalance]
+      // Проверяем существует ли кошелек
+      const existing = await queryRunner.query(
+        `SELECT id FROM wallets WHERE "userId" = $1`,
+        [user.id]
       );
-      console.log(`  ✓ Кошелек для ${user.firstName}: ${initialBalance} ₽`);
+      
+      if (existing.length > 0) {
+        console.log(`  ⚠️  Кошелек для ${user.firstName} уже существует`);
+      } else {
+        const initialBalance = randomInt(0, 50000);
+        
+        await queryRunner.query(
+          `INSERT INTO wallets ("userId", balance, "totalDeposited", "totalSpent", 
+           "isActive", "createdAt", "updatedAt") 
+           VALUES ($1, $2, $2, 0, true, NOW(), NOW())`,
+          [user.id, initialBalance]
+        );
+        console.log(`  ✓ Кошелек для ${user.firstName}: ${initialBalance} ₽`);
+        newWallets++;
+      }
     }
-    console.log(`✅ Создано ${createdUsers.length} кошельков\n`);
+    console.log(`✅ Кошельков в базе: ${createdUsers.length} (новых: ${newWallets})\n`);
 
     // ============================================
     // 5. СОЗДАНИЕ ЗАКАЗОВ
