@@ -66,19 +66,38 @@ export default function Profile() {
 
   const loadUserData = async () => {
     try {
-      const res = await axios.get(`${API_URL}/users/${user?.id}`);
-      const userData = res.data;
-      setProfileData({
-        firstName: userData.firstName || '',
-        lastName: userData.lastName || '',
-        middleName: userData.middleName || '',
-        phone: userData.phone || '',
-        birthDate: userData.birthDate ? userData.birthDate.split('T')[0] : '',
-        gender: userData.gender || '',
-        bio: userData.bio || '',
-      });
-      setAddresses(userData.addresses || []);
-      setNotifications(userData.notificationSettings || notifications);
+      // Если это админ, загружаем данные из admins
+      if (user?.role === 'admin') {
+        const res = await axios.get(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        const userData = res.data;
+        setProfileData({
+          firstName: userData.name || userData.email?.split('@')[0] || '',
+          lastName: '',
+          middleName: '',
+          phone: '',
+          birthDate: '',
+          gender: '',
+          bio: '',
+        });
+        setAddresses([]);
+      } else {
+        // Для обычных пользователей загружаем из users
+        const res = await axios.get(`${API_URL}/users/${user?.id}`);
+        const userData = res.data;
+        setProfileData({
+          firstName: userData.firstName || '',
+          lastName: userData.lastName || '',
+          middleName: userData.middleName || '',
+          phone: userData.phone || '',
+          birthDate: userData.birthDate ? userData.birthDate.split('T')[0] : '',
+          gender: userData.gender || '',
+          bio: userData.bio || '',
+        });
+        setAddresses(userData.addresses || []);
+        setNotifications(userData.notificationSettings || notifications);
+      }
     } catch (err) {
       console.error('Error loading user data:', err);
     }
