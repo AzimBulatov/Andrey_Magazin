@@ -22,6 +22,14 @@ export default function AdminDashboard() {
     },
   });
 
+  const { data: orders } = useQuery({
+    queryKey: ['orders'],
+    queryFn: async () => {
+      const res = await axios.get(`${API_URL}/orders`);
+      return res.data;
+    },
+  });
+
   return (
     <div>
       <div style={{
@@ -108,7 +116,7 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', marginBottom: '12px', fontWeight: '500' }}>Заказов</p>
-              <p style={{ fontSize: '40px', fontWeight: '700' }}>0</p>
+              <p style={{ fontSize: '40px', fontWeight: '700' }}>{orders?.length || 0}</p>
             </div>
             <div style={{ fontSize: '56px', opacity: 0.3 }}>🛒</div>
           </div>
