@@ -41,16 +41,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      // Сначала пробуем войти как пользователь
       let res;
-      try {
-        res = await axios.post(`${API_URL}/auth/user/login`, { email, password });
-      } catch (userError: any) {
-        // Если не получилось как пользователь, пробуем как админ
-        if (userError.response?.status === 401) {
+      
+      // Если email содержит "admin" - сначала пробуем админский вход
+      if (email.toLowerCase().includes('admin')) {
+        try {
           res = await axios.post(`${API_URL}/auth/admin/login`, { email, password });
-        } else {
-          throw userError;
+        } catch (adminError: any) {
+          // Если не получилось как админ, пробуем как пользователь
+          if (adminError.response?.status === 401) {
+            res = await axios.post(`${API_URL}/auth/user/login`, { email, password });
+          } else {
+            throw adminError;
+          }
+        }
+      } else {
+        // Для обычных пользователей - сначала пробуем user login
+        try {
+          res = await axios.post(`${API_URL}/auth/user/login`, { email, password });
+        } catch (userError: any) {
+          // Если не получилось как пользователь, пробуем как админ
+          if (userError.response?.status === 401) {
+            res = await axios.post(`${API_URL}/auth/admin/login`, { email, password });
+          } else {
+            throw userError;
+          }
         }
       }
 
