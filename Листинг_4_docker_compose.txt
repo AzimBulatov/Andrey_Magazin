@@ -1,3 +1,5 @@
+Листинг 4 – Файл docker-compose.yml (Конфигурация инфраструктуры)
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -11,7 +13,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -40,13 +41,13 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/telegram_shop
       JWT_SECRET: ${JWT_SECRET:-dev-secret-key}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8548014458:AAHxiyZ8136trjrUDfAOvBPg1_z5CX3nTBc}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       PORT: 3000
       API_URL: ${API_URL:-http://localhost:3000}
       WEBSITE_URL: ${WEBSITE_URL:-http://localhost:3002}
       WEBHOOK_DOMAIN: ${WEBHOOK_DOMAIN:-}
-      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-1280139}
-      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-test_8m_ZECQI5MzCFbveTmtmoAqo1rIabyk0eRkTJDPF2cg}
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY}
       REDIS_HOST: redis
       REDIS_PORT: 6379
     volumes:

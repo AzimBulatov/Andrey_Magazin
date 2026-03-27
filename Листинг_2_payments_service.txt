@@ -1,0 +1,171 @@
+Листинг 2 – Файл payments.service.ts (Сервис платежей)
+
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Transaction, TransactionType, TransactionStatus } from '../../entities/transaction.entity';
+import { Wallet } from '../../entities/wallet.entity';
+import { User } from '../../entities/user.entity';
+import axios from 'axios';
+
+@Injectable()
+export class PaymentsService {
+  private readonly yookassaShopId = process.env.YOOKASSA_SHOP_ID || 'test_shop_id';
+  private readonly yookassaSecretKey = process.env.YOOKASSA_SECRET_KEY || 'test_secret_key';
+  private readonly yookassaApiUrl = 'https://api.yookassa.ru/v3';
+
+  constructor(
+    @InjectRepository(Transaction)
+    private transactionRepository: Repository<Transaction>,
+    @InjectRepository(Wallet)
+    private walletRepository: Repository<Wallet>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+  ) {}
+
+  // Получить или создать кошелек пользователя
+  async getOrCreateWallet(userId: number): Promise<Wallet> {
+    let wallet = await this.walletRepository.findOne({ where: { userId } });
+    
+    if (!wallet) {
+      wallet = this.walletRepository.create({ userId, balance: 0 });
+      await this.walletRepository.save(wallet);
+    }
+    
+    return wallet;
+  }
+
+  // Пополнение баланса через ЮKassa
+  async createDepositPayment(userId: number, amount: number, paymentMethod: 'card' | 'sbp'): Promise<any> {
+    if (amount <= 0) {
+      throw new BadRequestException('Сумма должна быть больше 0');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+
+    // Создаем транзакцию
+    const transaction = this.transactionRepository.create({
+      userId,
+      amount,
+      type: TransactionType.DEPOSIT,
+      status: TransactionStatus.PENDING,
+      paymentMethod: paymentMethod === 'card' ? 'yookassa_card' : 'yookassa_sbp',
+      description: `Пополнение баланса на ${amount} ₽`,
+    });
+    await this.transactionRepository.save(transaction);
+
+    // Создаем платеж в ЮKassa
+    const websiteUrl = process.env.WEBSITE_URL || 'http://localhost:3001';
+    const paymentData = {
+      amount: {
+        value: amount.toFixed(2),
+        currency: 'RUB',
+      },
+      confirmation: {
+        type: 'redirect',
+        return_url: `${websiteUrl}/finance?payment=success`,
+      },
+      capture: true,
+      description: `Пополнение баланса`,
+      metadata: {
+        transactionId: transaction.id,
+        userId: userId,
+      },
+    };
+
+    const response = await axios.post(
+      `${this.yookassaApiUrl}/payments`,
+      paymentData,
+      {
+        auth: {
+          username: this.yookassaShopId,
+          password: this.yookassaSecretKey,
+        },
+        headers: {
+          'Idempotence-Key': `deposit_${transaction.id}_${Date.now()}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    // Обновляем транзакцию с ID платежа
+    transaction.externalId = response.data.id;
+    transaction.metadata = response.data;
+    await this.transactionRepository.save(transaction);
+
+    return {
+      transactionId: transaction.id,
+      paymentId: response.data.id,
+      confirmationUrl: response.data.confirmation.confirmation_url,
+      status: response.data.status,
+    };
+  }
+
+  // Обработка webhook от ЮKassa
+  async handleYookassaWebhook(payload: any): Promise<void> {
+    const payment = payload.object;
+    const transactionId = payment.metadata?.transactionId;
+
+    if (!transactionId) {
+      throw new BadRequestException('Transaction ID not found in payment metadata');
+    }
+
+    const transaction = await this.transactionRepository.findOne({
+      where: { id: transactionId },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    // Обновляем статус транзакции
+    if (payment.status === 'succeeded') {
+      transaction.status = TransactionStatus.COMPLETED;
+      await this.transactionRepository.save(transaction);
+      
+      // Пополняем баланс
+      await this.addToBalance(transaction.userId, transaction.amount);
+    } else if (payment.status === 'canceled') {
+      transaction.status = TransactionStatus.FAILED;
+      await this.transactionRepository.save(transaction);
+    }
+  }
+
+  // Добавить средства на баланс
+  private async addToBalance(userId: number, amount: number): Promise<void> {
+    const wallet = await this.getOrCreateWallet(userId);
+    wallet.balance = Number(wallet.balance) + amount;
+    wallet.totalDeposited = Number(wallet.totalDeposited) + amount;
+    await this.walletRepository.save(wallet);
+  }
+
+  // Оплата заказа с баланса
+  async payOrderFromWallet(userId: number, orderId: number, amount: number): Promise<Transaction> {
+    const wallet = await this.getOrCreateWallet(userId);
+    
+    if (Number(wallet.balance) < amount) {
+      throw new BadRequestException('Недостаточно средств на балансе');
+    }
+
+    // Списываем средства
+    wallet.balance = Number(wallet.balance) - amount;
+    wallet.totalSpent = Number(wallet.totalSpent) + amount;
+    await this.walletRepository.save(wallet);
+
+    // Создаем транзакцию
+    const transaction = this.transactionRepository.create({
+      userId,
+      orderId,
+      amount,
+      type: TransactionType.PAYMENT,
+      status: TransactionStatus.COMPLETED,
+      paymentMethod: 'wallet',
+      description: `Оплата заказа #${orderId}`,
+    });
+    
+    return await this.transactionRepository.save(transaction);
+  }
+}

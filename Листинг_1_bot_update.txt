@@ -1,0 +1,276 @@
+Листинг 1 – Файл bot.update.ts (Telegram-бот)
+
+import { Update, Ctx, Start, Help, Command, On } from 'nestjs-telegraf';
+import { Context } from 'telegraf';
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ProductsService } from '../products/products.service';
+import { CategoriesService } from '../categories/categories.service';
+import { AuthService } from '../auth/auth.service';
+import { User } from '../../entities/user.entity';
+import { CartItem } from '../../entities/cart-item.entity';
+import { Order, OrderStatus } from '../../entities/order.entity';
+import { OrderItem } from '../../entities/order-item.entity';
+import { Product } from '../../entities/product.entity';
+
+interface TelegramContext extends Context {
+  session?: any;
+}
+
+@Update()
+@Injectable()
+export class BotUpdate {
+  // Хранилище для состояний пользователей
+  private userStates = new Map<
+    number,
+    {
+      awaitingPhone?: boolean;
+      awaitingAddress?: boolean;
+      phone?: string;
+    }
+  >();
+
+  constructor(
+    private readonly productsService: ProductsService,
+    private readonly categoriesService: CategoriesService,
+    private readonly authService: AuthService,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+    @InjectRepository(CartItem)
+    private cartRepository: Repository<CartItem>,
+    @InjectRepository(Order)
+    private orderRepository: Repository<Order>,
+    @InjectRepository(OrderItem)
+    private orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
+  ) {}
+
+  // Получить или создать пользователя
+  private async getOrCreateUser(ctx: TelegramContext): Promise<User> {
+    if (!ctx.from) {
+      throw new Error('User information not available');
+    }
+
+    const telegramId = ctx.from.id.toString();
+    
+    let user = await this.userRepository.findOne({
+      where: { telegramId },
+    });
+
+    if (!user) {
+      user = this.userRepository.create({
+        telegramId,
+        username: ctx.from.username,
+        firstName: ctx.from.first_name,
+        lastName: ctx.from.last_name,
+      });
+      await this.userRepository.save(user);
+    }
+
+    return user;
+  }
+
+  // Главное меню с кнопкой корзины
+  private getMainKeyboard(cartCount: number = 0) {
+    return {
+      keyboard: [
+        [{ text: '📦 Категории' }, { text: `🛒 Корзина ${cartCount > 0 ? `(${cartCount})` : ''}` }],
+        [{ text: '📋 Мои заказы' }, { text: '🌐 Войти на сайт' }],
+        [{ text: 'ℹ️ Помощь' }],
+      ],
+      resize_keyboard: true,
+    };
+  }
+
+  @Start()
+  async start(@Ctx() ctx: TelegramContext) {
+    const user = await this.getOrCreateUser(ctx);
+    const cartCount = await this.cartRepository.count({ where: { userId: user.id } });
+
+    await ctx.reply(
+      `👋 Добро пожаловать, ${user.firstName}!\n\n` +
+        '🛍 Наш магазин к вашим услугам!\n\n' +
+        '📱 Выберите действие из меню ниже:',
+      {
+        reply_markup: this.getMainKeyboard(cartCount),
+      },
+    );
+  }
+
+  @Command('categories')
+  async categories(@Ctx() ctx: TelegramContext) {
+    await this.getOrCreateUser(ctx);
+    const categories = await this.categoriesService.findAll(true);
+
+    if (categories.length === 0) {
+      await ctx.reply('😔 Категории пока не добавлены', {
+        reply_markup: this.getMainKeyboard(),
+      });
+      return;
+    }
+
+    const buttons = categories.map((cat) => [
+      {
+        text: `${cat.name} (${cat.products?.length || 0} товаров)`,
+        callback_data: `cat_${cat.id}`,
+      },
+    ]);
+
+    buttons.push([{ text: '🔙 Главное меню', callback_data: 'main_menu' }]);
+
+    await ctx.reply('📦 Выберите категорию:', {
+      reply_markup: {
+        inline_keyboard: buttons,
+      },
+    });
+  }
+
+  private async showCart(ctx: TelegramContext) {
+    const user = await this.getOrCreateUser(ctx);
+    const cartItems = await this.cartRepository.find({
+      where: { userId: user.id },
+      relations: ['product', 'product.category'],
+    });
+
+    if (cartItems.length === 0) {
+      await ctx.reply('🛒 Ваша корзина пуста\n\nДобавьте товары из каталога!', {
+        reply_markup: this.getMainKeyboard(0),
+      });
+      return;
+    }
+
+    let total = 0;
+    let message = '🛒 Ваша корзина:\n\n';
+
+    cartItems.forEach((item, index) => {
+      const itemTotal = item.product.price * item.quantity;
+      total += itemTotal;
+      message += `${index + 1}. ${item.product.name}\n`;
+      message += `   ${item.quantity} шт × ${item.product.price} ₽ = ${itemTotal} ₽\n\n`;
+    });
+
+    message += `💰 Итого: ${total} ₽`;
+
+    const buttons = [
+      [
+        { text: '✅ Оформить заказ', callback_data: 'checkout' },
+        { text: '🗑 Очистить корзину', callback_data: 'clear_cart' },
+      ],
+      [{ text: '🔙 Продолжить покупки', callback_data: 'main_menu' }],
+    ];
+
+    await ctx.reply(message, {
+      reply_markup: {
+        inline_keyboard: buttons,
+      },
+    });
+  }
+
+  private async addToCart(userId: number, productId: number, quantity: number): Promise<number> {
+    const product = await this.productRepository.findOne({ where: { id: productId } });
+    
+    if (!product || product.stock < quantity) {
+      throw new Error('Недостаточно товара на складе');
+    }
+
+    let cartItem = await this.cartRepository.findOne({
+      where: { userId, productId },
+    });
+
+    if (cartItem) {
+      cartItem.quantity += quantity;
+    } else {
+      cartItem = this.cartRepository.create({
+        userId,
+        productId,
+        quantity,
+      });
+    }
+
+    await this.cartRepository.save(cartItem);
+
+    // Возвращаем общее количество товаров в корзине
+    const totalCount = await this.cartRepository
+      .createQueryBuilder('cart')
+      .select('SUM(cart.quantity)', 'total')
+      .where('cart.userId = :userId', { userId })
+      .getRawOne();
+
+    return parseInt(totalCount.total) || 0;
+  }
+
+  private async createOrder(ctx: TelegramContext, user: User, phone: string, address: string) {
+    const cartItems = await this.cartRepository.find({
+      where: { userId: user.id },
+      relations: ['product'],
+    });
+
+    if (cartItems.length === 0) {
+      await ctx.reply('🛒 Корзина пуста');
+      return;
+    }
+
+    // Проверка наличия
+    for (const item of cartItems) {
+      if (item.product.stock < item.quantity) {
+        await ctx.reply(
+          `❌ Недостаточно товара "${item.product.name}" на складе\n` +
+            `Доступно: ${item.product.stock} шт., в корзине: ${item.quantity} шт.`,
+        );
+        return;
+      }
+    }
+
+    // Создание заказа
+    const totalAmount = cartItems.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0,
+    );
+
+    const orderNumber = await this.generateOrderNumber();
+    const order = this.orderRepository.create({
+      userId: user.id,
+      orderNumber,
+      totalAmount,
+      status: OrderStatus.PENDING,
+      paymentMethod: 'cash_on_delivery',
+      phone,
+      deliveryAddress: address,
+    });
+
+    const savedOrder = await this.orderRepository.save(order);
+
+    // Создание позиций заказа
+    for (const item of cartItems) {
+      const orderItem = this.orderItemRepository.create({
+        orderId: savedOrder.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.product.price,
+      });
+      await this.orderItemRepository.save(orderItem);
+
+      // Уменьшение остатка
+      item.product.stock -= item.quantity;
+      item.product.salesCount += item.quantity;
+      await this.productRepository.save(item.product);
+    }
+
+    // Очистка корзины
+    await this.cartRepository.delete({ userId: user.id });
+
+    await ctx.reply(
+      `✅ Заказ #${orderNumber} успешно создан!\n\n` +
+        `💰 Сумма: ${totalAmount} ₽\n` +
+        `📦 Товаров: ${cartItems.length}\n\n` +
+        `Товар будет доставлен по адресу ${address}, ` +
+        `в случае необходимости с вами свяжутся по номеру ${phone}, ` +
+        `оплата курьеру при получении.`,
+      {
+        reply_markup: this.getMainKeyboard(0),
+      },
+    );
+  }
+}
