@@ -51,6 +51,7 @@ services:
       REDIS_PORT: 6379
     volumes:
       - uploads_data:/app/uploads
+      - /root/backups:/backups
     depends_on:
       postgres:
         condition: service_healthy
