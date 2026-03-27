@@ -101,16 +101,20 @@ export class AuthService {
       throw new UnauthorizedException('Неверный email или пароль');
     }
 
-    const payload = { sub: admin.id, email: admin.email, role: 'admin' };
+    // Проверяем есть ли пользователь с таким же email (для доступа к финансам)
+    const user = await this.userRepository.findOne({ where: { email } });
+    const userId = user ? user.id : admin.id;
+
+    const payload = { sub: userId, email: admin.email, role: 'admin' };
     const token = this.jwtService.sign(payload);
 
     return {
       access_token: token,
       user: {
-        id: admin.id,
+        id: userId,
         email: admin.email,
         name: admin.name,
-        role: admin.role,
+        role: 'admin',
       },
     };
   }
@@ -288,7 +292,36 @@ export class AuthService {
     authToken.used = true;
     await this.telegramAuthTokenRepository.save(authToken);
 
-    // Получаем пользователя
+    // Проверяем, это админ или обычный пользователь
+    const admin = await this.adminRepository.findOne({
+      where: { telegramId: authToken.telegramId },
+    });
+
+    if (admin) {
+      // Это админ - возвращаем с ролью admin
+      const user = await this.userRepository.findOne({
+        where: { email: admin.email },
+      });
+      const userId = user ? user.id : admin.id;
+
+      const payload = { sub: userId, telegramId: admin.telegramId, role: 'admin' };
+      const jwtToken = this.jwtService.sign(payload);
+
+      return {
+        access_token: jwtToken,
+        user: {
+          id: userId,
+          telegramId: admin.telegramId,
+          email: admin.email,
+          firstName: user?.firstName || admin.name.split(' ')[0],
+          lastName: user?.lastName || admin.name.split(' ')[1],
+          phone: user?.phone,
+          role: 'admin',
+        },
+      };
+    }
+
+    // Получаем обычного пользователя
     const user = await this.userRepository.findOne({
       where: { id: authToken.userId },
     });
