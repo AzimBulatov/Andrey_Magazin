@@ -25,8 +25,9 @@ services:
     image: redis:7-alpine
     container_name: telegram-shop-redis
     restart: always
-    ports:
-      - "6379:6379"
+    # Порт НЕ публикуется наружу - доступ только внутри Docker сети
+    expose:
+      - "6379"
     networks:
       - app-network
 
@@ -36,8 +37,9 @@ services:
       dockerfile: Dockerfile
     container_name: telegram-shop-backend
     restart: always
-    ports:
-      - "3000:3000"
+    # Порт НЕ публикуется наружу - доступ только через nginx
+    expose:
+      - "3000"
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/telegram_shop
       JWT_SECRET: ${JWT_SECRET:-dev-secret-key}
