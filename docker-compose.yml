@@ -7,8 +7,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: telegram_shop
-    ports:
-      - "5432:5432"
+    # Порт НЕ публикуется наружу - доступ только внутри Docker сети
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
